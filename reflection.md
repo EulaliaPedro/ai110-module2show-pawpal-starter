@@ -5,7 +5,17 @@
 **a. Initial design**
 
 - Briefly describe your initial UML design.
+  The inital UML includes: 
+       - see and add/edit/remove tasks
+       - view daily schedule 
+       - enter basic pet and user information 
 - What classes did you include, and what responsibilities did you assign to each?
+   Classes that would be included: 
+     - class userInfo - will get the information of the user (pet owner) and pet. Should there be a seperate on for each?
+     - class viewTask - this would get all the informatino and print it for the user to view when they want 
+     - class createTask - this would have user input task details: task name, duration, date, and any other notes
+     - class viewSchedule - allows users to view the the created Schedule 
+     - class generateSchedule - based on the users prefernces the schedule will generated 
 
 **b. Design changes**
 

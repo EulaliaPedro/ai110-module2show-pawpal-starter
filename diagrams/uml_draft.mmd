@@ -1,0 +1,41 @@
+classDiagram
+    %% PawPal+ class diagram based on the System Design section of reflection.md
+
+    class Owner {
+        +string name
+        +string email
+        +List~Pet~ pets
+        +addPet(pet Pet) void
+        +createTask(pet Pet, task Task) void
+        +viewSchedule() Schedule
+    }
+
+    class Pet {
+        +string name
+        +string species
+        +int age
+        +List~Task~ tasks
+        +addTask(task Task) void
+        +removeTask(task Task) void
+    }
+
+    class Task {
+        +string name
+        +int duration
+        +date dueDate
+        +string notes
+        +int priority
+        +edit(details) void
+    }
+
+    class Scheduler {
+        +List~Task~ tasks
+        +generateSchedule() Schedule
+        +viewSchedule() void
+    }
+
+    Owner "1" --> "*" Pet : owns
+    Pet "1" --> "*" Task : has
+    Owner ..> Task : creates
+    Scheduler --> Task : schedules
+    Owner --> Scheduler : uses
