@@ -21,7 +21,7 @@
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
-
+  One change that was made was using methods rather than classes for the information. For example an owner can create a task, while a pet can be added a task. Reducing any redundancy and tasked where placed to match what the  expected actions of users.
 ---
 
 ## 2. Scheduling Logic and Tradeoffs
