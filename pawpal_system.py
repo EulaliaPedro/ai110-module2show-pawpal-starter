@@ -1,9 +1,20 @@
 #Where the back end logic lives
 
+import calendar
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 from uuid import uuid4
+
+
+def _add_months(value, months: int):
+    """Shift a date/datetime forward by whole months, clamping the day to the
+    target month's length (e.g. Jan 31 + 1 month -> Feb 28)."""
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(value.day, calendar.monthrange(year, month)[1])
+    return value.replace(year=year, month=month, day=day)
 
 
 @dataclass
@@ -36,9 +47,41 @@ class Task:
                 raise AttributeError(f"Task has no editable field {key!r}")
             setattr(self, key, value)
 
-    def mark_complete(self, done: bool = True) -> None:
-        """Set the task's completion status."""
+    def mark_complete(self, done: bool = True) -> Optional["Task"]:
+        """Set completion status; on a fresh completion of a recurring task,
+        spawn and return the next occurrence (attached to the same pet)."""
+        was_completed = self.completed
         self.completed = done
+        if done and not was_completed:
+            nxt = self.next_occurrence()
+            if nxt is not None:
+                if self.pet is not None:
+                    self.pet.add_task(nxt)
+                return nxt
+        return None
+
+    def next_occurrence(self) -> Optional["Task"]:
+        """Return a fresh, incomplete Task for this task's next cycle, or None
+        if it does not recur ("once"). due_date and start_time advance by the
+        frequency interval; identity/completion do not carry over."""
+        if self.frequency == "daily":
+            shift = lambda v: v + timedelta(days=1)
+        elif self.frequency == "weekly":
+            shift = lambda v: v + timedelta(weeks=1)
+        elif self.frequency == "monthly":
+            shift = lambda v: _add_months(v, 1)
+        else:
+            return None  # "once" or unknown cadence: no repeat
+        return Task(
+            name=self.name,
+            duration=self.duration,
+            due_date=shift(self.due_date),
+            start_time=shift(self.start_time) if self.start_time else None,
+            notes=self.notes,
+            priority=self.priority,
+            frequency=self.frequency,
+            pet=self.pet,
+        )
 
     def overlaps(self, other: "Task") -> bool:
         """Return True if this task's scheduled time window collides with another's."""
@@ -86,6 +129,23 @@ class Owner:
         """Return all tasks for every pet owned by this owner."""
         return [task for pet in self.pets for task in pet.tasks]
 
+    def filter_tasks(
+        self,
+        completed: Optional[bool] = None,
+        pet_name: Optional[str] = None,
+    ) -> List[Task]:
+        """Return tasks filtered by completion status and/or pet name.
+
+        Pass `completed` to keep only done/undone tasks, `pet_name` to keep
+        only one pet's tasks; omit both to return everything. Filters combine.
+        """
+        tasks = self.get_all_tasks()
+        if completed is not None:
+            tasks = [t for t in tasks if t.completed == completed]
+        if pet_name is not None:
+            tasks = [t for t in tasks if t.pet is not None and t.pet.name == pet_name]
+        return tasks
+
     def view_schedule(self) -> List[Task]:
         """Return the schedule the scheduler builds from all this owner's pets' tasks."""
         return self.scheduler.generate_schedule(self.pets)
@@ -97,39 +157,73 @@ class Scheduler:
         """Aggregate tasks across all pets (single source of truth stays on Pet)."""
         return [task for pet in pets for task in pet.tasks]
 
-    def generate_schedule(self, pets: List[Pet]) -> List[Task]:
-        """Build an ordered schedule from the pets' tasks, resolving overlaps by priority."""
-        tasks = [t for t in self.collect_tasks(pets) if not t.completed]
-        scheduled = sorted(
-            (t for t in tasks if t.start_time is not None),
-            key=lambda t: t.start_time,
+    def sort_by_time(self, tasks: List[Task]) -> List[Task]:
+        """Return tasks ordered by start_time; unscheduled tasks (None) go last."""
+        return sorted(
+            tasks,
+            key=lambda t: (t.start_time is None, t.start_time or datetime.max),
         )
-        unscheduled = [t for t in tasks if t.start_time is None]
 
-        placed: List[Task] = []
-        for task in scheduled:
-            conflict = next((p for p in placed if p.overlaps(task)), None)
-            if conflict is None:
-                placed.append(task)
-            elif task.priority > conflict.priority:
-                # New task wins the slot; the previous occupant is deferred.
-                placed.remove(conflict)
-                placed.append(task)
-                unscheduled.append(conflict)
-            else:
-                unscheduled.append(task)
+    def detect_conflicts(self, pets: List[Pet]) -> List[str]:
+        """Return warning messages for scheduled tasks whose time windows overlap.
 
-        unscheduled.sort(key=lambda t: (-t.priority, t.due_date))
-        return placed + unscheduled
+        Lightweight and non-fatal: returns an empty list when there are no
+        conflicts and never raises. Unscheduled or completed tasks are ignored.
+        """
+        scheduled = self.sort_by_time(
+            [t for t in self.collect_tasks(pets)
+             if not t.completed and t.start_time is not None]
+        )
+        warnings: List[str] = []
+        for i, first in enumerate(scheduled):
+            for second in scheduled[i + 1:]:
+                # Sorted by start_time, so once a task starts at/after `first`
+                # ends, nothing later can overlap it -- stop scanning early.
+                if second.start_time >= first.end_time:
+                    break
+                if first.overlaps(second):
+                    warnings.append(
+                        f"WARNING: '{first.name}' "
+                        f"({self._label(first)}) overlaps '{second.name}' "
+                        f"({self._label(second)})"
+                    )
+        return warnings
+
+    @staticmethod
+    def _label(task: Task) -> str:
+        """Short 'HH:MM-HH:MM, pet' descriptor used in conflict warnings."""
+        pet_name = task.pet.name if task.pet else "?"
+        span = f"{task.start_time:%H:%M}-{task.end_time:%H:%M}"
+        return f"{span}, {pet_name}"
+
+    def generate_schedule(self, pets: List[Pet]) -> List[Task]:
+        """Return all incomplete tasks ordered by start time (unscheduled last)."""
+        tasks = [t for t in self.collect_tasks(pets) if not t.completed]
+        return self.sort_by_time(tasks)
+
 
     def view_schedule(self, pets: List[Pet]) -> None:
-        """Display the generated schedule."""
+        """Print the day's schedule in time order, then list any time conflicts."""
         schedule = self.generate_schedule(pets)
+
         if not schedule:
             print("No tasks scheduled.")
             return
+
+        print("Today's Schedule")
+        print("-" * 50)
+
         for task in schedule:
-            when = task.start_time.strftime("%Y-%m-%d %H:%M") if task.start_time else "unscheduled"
+            when = task.start_time.strftime("%I:%M %p")
             pet_name = task.pet.name if task.pet else "?"
             freq = "" if task.frequency == "once" else f", {task.frequency}"
-            print(f"[{when}] {task.name} ({pet_name}, {task.duration}m, p{task.priority}{freq})")
+
+            print(f"[{when}] {task.name} ({pet_name}, {task.duration}m{freq})")
+
+        warnings = self.detect_conflicts(pets)
+
+        if warnings:
+            print("\nConflicts Detected")
+            print("-" * 50)
+            for warning in warnings:
+                print(warning)

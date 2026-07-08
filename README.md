@@ -51,6 +51,7 @@ Paste a sample of your app's CLI or Streamlit output here so a reader can see wh
     [2026-07-07 09:00] Vet Appointment (Billy, 60m)
     [2026-07-07 11:00] Go on a walk (Martha, 30m)
     [unscheduled] Buy more treats (Billy, 20m)
+
 ```
 # e.g.:
 # Daily plan for Biscuit (Golden Retriever):
@@ -72,28 +73,60 @@ pytest --cov
 Sample test output:
 
 ```
+============================================== \test session starts ==============================================
+platform win32 -- Python 3.14.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\Desktop\ai110-module2show-pawpal-starter
+plugins: anyio-4.14.0
+collected 3 items
+
+
+tests\test_pawpal.py ...                                                                                     [100%]
+
+================================================ 3 passed in 0.07s ================================================
+
+
 # Paste your pytest output here
 ```
+
+platform win32 -- Python 3.14.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\Desktop\ai110-module2show-pawpal-starter
+plugins: anyio-4.14.0, cov-7.1.0
+collected 3 items
+
+tests\test_pawpal.py ... [100%]
+
+====================================== tests coverage =======================================
+****\*\*****\_\_****\*\***** coverage: platform win32, python 3.14.3-final-0 ****\*\*****\_\_****\*\*****
+
+## Name Stmts Miss Cover
+
+pawpal_system.py 126 61 52%
+tests\test_pawpal.py 27 3 89%
+
+---
+
+TOTAL 153 64 58%
+===================================== 3 passed in 0.20s =====================================
 
 ## 📐 Smarter Scheduling
 
 > Fill in once you've implemented scheduling logic.
 
-| Feature | Method(s) | Notes |
-|---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Feature           | Method(s)             | Notes                        |
+| ----------------- | --------------------- | ---------------------------- |
+| Task sorting      | sort_by_time(...)     | by priority, by the due date |
+| Filtering         | filter_tasks(...)     | by completion                |
+| Conflict handling | detect_conflicts(...) | Error warning                |
+| Recurring tasks   | next_occurrence(...)  | daily vs. weekly vs. monthly |
 
 ## 📸 Demo Walkthrough
 
 Describe your app in numbered steps so a reader can follow along without watching a video:
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+1. <!-- First step to is enter the owner (users) name and email adress -->
+2. <!-- Next user has to enter their pet information (name, specices, age) and add the pet -->
+3. <!-- User creates tasks for one or more pets -->
+4. <!-- Can then  view the current tasks -->
+5. <!-- user can generate the schedule for the day -->
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+**Screenshot or video** _(optional)_: <!-- Insert a screenshot or link to a demo video here -->
